@@ -1,0 +1,28 @@
+*** a/src/SameSite.php
+--- b/src/SameSite.php
+@@
+-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
++        // PHP 8.2: preg_match() deprecates null as $subject; normalize to string
++        $ua = isset($_SERVER['HTTP_USER_AGENT']) && is_string($_SERVER['HTTP_USER_AGENT'])
++            ? $_SERVER['HTTP_USER_AGENT']
++            : '';
+@@
+-        if (preg_match('/CPU (?:iPhone )?OS 12[_\.]/', $ua)) {
++        if (preg_match('/CPU (?:iPhone )?OS 12[_\.]/', (string) $ua)) {
+             return true;
+         }
+@@
+-        if (preg_match('/UCBrowser\/(\d+\.\d+\.\d+)/', $ua, $matches)) {
++        if (preg_match('/UCBrowser\/(\d+\.\d+\.\d+)/', (string) $ua, $matches)) {
+             // ...
+         }
+@@
+-        if (preg_match('/Macintosh; Intel Mac OS X 10_14.*Version\/12\./', $ua)) {
++        if (preg_match('/Macintosh; Intel Mac OS X 10_14.*Version\/12\./', (string) $ua)) {
+             return true;
+         }
+@@
+-        if (preg_match('/Chrome\/(\d+)/', $ua, $matches)) {
++        if (preg_match('/Chrome\/(\d+)/', (string) $ua, $matches)) {
+             // ...
+         }

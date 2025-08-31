@@ -1,64 +1,70 @@
-version: "3"
+# Compose V2 (no version key needed)
 
 networks:
-  backend:
-    driver: bridge
+  backend: {}
 
 volumes:
-  mailcatcher-data:
-    driver: local
-
-  ### ignore folder volume #####
-  var:
-    driver: local
-  vendor:
-    driver: local
-  node_modules:
-    driver: local
+  var: {}
+  vendor: {}
+  node_modules: {}
+  db-data: {}
 
 services:
-  ### ECCube4 ##################################
+  # === EC-CUBE (PHP 8.1 + Apache) ===
   ec-cube:
-    ### ローカルでビルドする場合は以下のコマンドを使用します
-    ## docker build -t ec-cube --no-cache --pull --build-arg TAG=8.1-apache .
-    ## docker tag ec-cube ghcr.io/ec-cube/ec-cube-php:8.1-apache
+    platform: "linux/amd64"          # Apple Silicon fix
     image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-ec-cube/ec-cube-php}:${TAG:-8.1-apache}
     ports:
-      - 8080:80
-      - 4430:443
+      - "8080:80"                    # change left port if 8080 is taken (e.g., 8085:80)
+      - "4430:443"
     volumes:
-      ### 同期対象からコストの重いフォルダを除外 #####################
       - "var:/var/www/html/var"
       - "vendor:/var/www/html/vendor"
       - "node_modules:/var/www/html/node_modules"
     environment:
-      # EC-CUBE environments
       APP_ENV: "dev"
       APP_DEBUG: 1
-      DATABASE_URL: "sqlite:///var/eccube.db"
-      DATABASE_SERVER_VERSION: 3
-      DATABASE_CHARSET: 'utf8'
+      # Use root so EC-CUBE can create/use the DB cleanly
+      DATABASE_URL: "mysql://root:root@db:3306/eccube"
+      DATABASE_SERVER_VERSION: 8.0
+      DATABASE_CHARSET: "utf8mb4"
       MAILER_DSN: "smtp://mailcatcher:1025"
       ECCUBE_AUTH_MAGIC: "<change.me>"
-      # TRUSTED_HOSTS: '^127.0.0.1$$,^localhost$$'
-      # ECCUBE_LOCALE: "ja"
-      # ECCUBE_TIMEZONE: "Asia/Tokyo"
-      # ECCUBE_CURRENCY: "JPY"
-      # ECCUBE_ADMIN_ROUTE: "admin"
-      # ECCUBE_USER_DATA_ROUTE: "user_data"
-      # ECCUBE_ADMIN_ALLOW_HOSTS: []
-      # ECCUBE_FORCE_SSL: false
-      # ECCUBE_TEMPLATE_CODE: "default"
-      # ECCUBE_COOKIE_NAME: "eccube"
-      # ECCUBE_COOKIE_PATH: "/"
-      # ECCUBE_COOKIE_LIFETIME: 0
-      # ECCUBE_GC_MAXLIFETIME: 1440
-      # ECCUBE_ADMIN_USER: "admin"
-      # ECCUBE_ADMIN_PASS: "password"
+    depends_on:
+      - db
+      - mailcatcher
     networks:
       - backend
 
-  ### Mailcatcher ##################################
+  # === MySQL 8 ===
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      # (intentionally NOT setting MYSQL_DATABASE/USER/PASSWORD to avoid conflicts)
+    ports:
+      - "3306:3306"
+    volumes:
+      - "db-data:/var/lib/mysql"
+    networks:
+      - backend
+
+  # === phpMyAdmin ===
+  phpmyadmin:
+    platform: "linux/amd64"          # Apple Silicon fix
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: root
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    networks:
+      - backend
+
+  # === Mailcatcher (dev mail) ===
   mailcatcher:
     image: schickling/mailcatcher
     ports:
